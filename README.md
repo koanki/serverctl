@@ -1,0 +1,2 @@
+# serverctl
+Server Management Script
