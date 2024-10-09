@@ -1,220 +1,171 @@
-# Server Management Script with Vault Integration
+# Servalizer
 
-This shell script provides a robust solution for managing multiple Unix-like servers through SSH. It integrates with HashiCorp Vault for secure credential management, allowing users to log in via SSH, transfer files, execute commands, and manage server configurations easily and securely.
+**Servalizer** is a powerful and flexible server management tool designed to simplify server access, command execution, and file transfers across Unix-like and Windows servers. It supports SSH for Unix-like systems and RDP (via `mstsc`) for Windows nodes, with the ability to securely store and retrieve credentials from a HashiCorp Vault. Additional features include batch execution, command customization, and server grouping for more efficient operations.
 
 ## Features
+- **Automatic login**: Login to Unix-like or Windows servers using credentials stored in HashiCorp Vault.
+- **Command execution**: Execute general or server-specific commands on the selected server or batch across groups.
+- **Batch file transfers**: Upload or download files with support for wildcards.
+- **Color-coded output**: Improve readability with customizable colors in the terminal.
+- **FZF (optional)**: Enable fuzzy searching for server and command selection.
+- **Batch execution**: Run commands in parallel across multiple servers or groups.
+- **Error handling**: Friendly error messages and guidance for unsupported OS actions.
 
-- **Server Group Management**: Organize servers into groups for easier access and management.
-- **Vault Integration**: Securely retrieve server credentials (username and password) from HashiCorp Vault.
-- **SSH Login**: Automatically log in to servers using credentials stored in Vault.
-- **File Transfers**: Upload and download files (including batch operations) to/from servers, with support for wildcards.
-- **Command Execution**: Execute predefined or custom commands on remote servers.
-- **Color-Coded Output**: Enhanced user experience with color-coded console output for better readability.
-- **fzf (Fuzzy Finder) Integration**: Optional fuzzy search to select servers and commands more quickly.
-- **Custom Commands**: Run general or server-specific custom commands and log them for future use.
+## Installation
 
-## Requirements
+1. Install necessary dependencies:
+   - `jq`: A lightweight command-line JSON processor.
+   - `fzf`: (Optional) A command-line fuzzy finder for easier selection.
 
-Before using this script, ensure the following dependencies are installed:
+2. Download or clone the repository and make the script executable:
+   ```bash
+   chmod +x servalizer.sh
 
-- **jq**: A command-line JSON processor to handle `servers.json`. Install it using your package manager:
-  
-  ```bash
-  sudo apt-get install jq       # Ubuntu/Debian
-  brew install jq               # macOS
-  ```
+	3.	Add servalizer to your PATH for easy access:
 
-- **sshpass**: A tool for non-interactive SSH password authentication. Install it using:
+export PATH=$PATH:/path/to/servalizer
 
-  ```bash
-  sudo apt-get install sshpass   # Ubuntu/Debian
-  brew install hudochenkov/sshpass/sshpass  # macOS
-  ```
 
-- **Vault CLI**: HashiCorp Vault CLI to retrieve secrets. Install it by following [Vault's official installation guide](https://www.vaultproject.io/docs/install).
 
-- **fzf (optional)**: Fuzzy finder to improve server and command selection. Install with:
+Usage
 
-  ```bash
-  sudo apt-get install fzf       # Ubuntu/Debian
-  brew install fzf               # macOS
-  ```
+General syntax:
 
-## Configuration
+servalizer [options]
 
-### Vault Configuration
+Options:
 
-The script uses **HashiCorp Vault** to securely retrieve server credentials. The `servers.json` file specifies the Vault paths and prefixes for each server. Ensure you have the Vault CLI configured and authenticated to access the secrets.
+Option	Description
+-h, --help	Display help message and usage information
+--no-fzf	Disable fuzzy finding for manual server and command selection
+--no-color	Disable color output in the terminal
 
-**Vault Entry Structure**:
-- For each server, store the username and password in Vault. For example, for a server entry `unix_login`:
-  - `unix_login_name` → Contains the username.
-  - `unix_login_pw` → Contains the password.
+Example usage:
 
-```bash
-vault kv put secret/unix_login_name value="myusername"
-vault kv put secret/unix_login_pw value="mypassword"
-```
+	•	Basic server login:
 
-### Server Configuration File
+servalizer
 
-Create a `servers.json` file to define your server groups and their associated credentials. The file should include the Vault path and the credential prefixes.
+	•	Select the server from the list or use FZF for fuzzy searching.
+	•	Automatically log in using credentials retrieved from Vault.
 
-```json
+	•	Execute a command on a server:
+
+servalizer
+
+	•	Choose a server, then select the command you want to execute.
+
+	•	Batch command execution on all servers in a group:
+
+servalizer --batch
+
+
+	•	Transfer files:
+
+servalizer --upload /local/file/path /remote/directory
+servalizer --download /remote/file/path /local/directory
+
+
+
+Configuration File (server.json)
+
+The configuration file defines the servers, their groups, and the commands associated with them. Here’s a sample server.json file:
+
 {
-  "server_groups": {
-    "Development Servers": [
-      {
-        "name": "dev-server1",
-        "ip": "192.168.1.100",
-        "vault_path": "secret/data/unix_login",
-        "vault_prefix": "unix_login",
-        "description": "Development server for testing",
-        "commands": [
-          {
-            "name": "Check Disk Space",
-            "command": "df -h"
-          },
-          {
-            "name": "List Running Processes",
-            "command": "ps aux"
-          }
-        ]
-      }
-    ],
-    "Production Servers": [
-      {
-        "name": "prod-server1",
-        "ip": "192.168.1.101",
-        "vault_path": "secret/data/unix_login",
-        "vault_prefix": "unix_login",
-        "description": "Main production server",
-        "commands": [
-          {
-            "name": "Check Web Server Status",
-            "command": "systemctl status nginx"
-          }
-        ]
-      }
-    ]
-  },
   "general_commands": [
     {
-      "name": "Update Packages",
-      "command": "sudo apt-get update && sudo apt-get upgrade"
+      "name": "Check disk space",
+      "command": "df -h"
+    },
+    {
+      "name": "Show memory usage",
+      "command": "free -m"
     }
-  ]
+  ],
+  "server_groups": {
+    "Core Servers": [
+      {
+        "server": "linux-server-111",
+        "description": "Ansible Controller",
+        "vault_path": "kv/jenkins",
+        "vault_prefix": "UNIX_LOGIN",
+        "os": "linux",
+        "commands": [
+          {
+            "name": "Stop Jenkins Service",
+            "command": "sudo systemctl stop jenkins"
+          },
+          {
+            "name": "Backup Jenkins configs",
+            "command": "tar -czf /backup/jenkins_$(date +%F).tar.gz /var/lib/jenkins"
+          }
+        ]
+      },
+      {
+        "server": "windows-server-112",
+        "description": "SQL Server",
+        "vault_path": "kv/sql",
+        "vault_prefix": "WIN_LOGIN",
+        "os": "windows"
+      }
+    ]
+  }
 }
-```
 
-### Shell Script Configuration
+Customization and Color Coding
 
-Ensure the `servers.json` path is correctly set in the script:
+The script uses customizable color-coded output to enhance readability. You can disable the colors with the --no-color option or modify the color scheme directly in the script by changing the color variables.
 
-```bash
-SERVERS_FILE="path/to/servers.json"
-```
+	•	Example colors:
+	•	Red: Used for errors or warnings.
+	•	Green: Used for success messages.
+	•	Cyan: Used for general information or prompts.
+	•	Yellow: Used for warnings or lack of available commands.
 
-## Usage
+Error Handling
 
-1. **Run the script**:
-   ```bash
-   ./serverctl.sh
-   ```
+When executing a command that is not supported for a specific OS, Servalizer provides clear and helpful error messages. Example:
 
-2. **Select a server group**:
-   - You will be prompted to choose a group of servers from `servers.json`.
+print_color "$RED" "Error: The action you attempted is not supported for the selected OS: '$SERVER_OS'. Please review the available commands for this OS or try again with a different server. Exiting."
 
-3. **Select an action**:
-   - You can log in via SSH, upload/download files, or execute commands (predefined or custom).
+This ensures that the user understands the problem and is given options to resolve it.
 
-### Example Interaction
+Adding New Commands
 
-```bash
-$ ./serverctl.sh
+To add new general or server-specific commands, simply edit the server.json file. General commands can be added to the general_commands array, while server-specific commands should be added under the appropriate server entry in server_groups.
 
-Available server groups:
-1) Development Servers
-2) Production Servers
+Example: Backup Jenkins Before Upgrade
 
-Enter the number of the server group: 1
-Selected group: Development Servers
+{
+  "name": "Backup Jenkins",
+  "command": "tar -czf /backup/jenkins_backup_$(date +%F).tar.gz /var/lib/jenkins /etc/default/jenkins"
+}
 
-Available servers in group 'Development Servers':
-1) dev-server1 - Development server for testing
+Example: Restore Jenkins from Backup
 
-Enter the number of the server to connect to: 1
-Selected server: dev-server1
+{
+  "name": "Restore Jenkins",
+  "command": "tar -xzf /backup/jenkins_backup.tar.gz -C /"
+}
 
-Select an action:
-1) Login via SSH with password (retrieved from Vault)
-2) Upload files to the server
-3) Download files from the server
-4) Execute a command on the server
-5) Execute a custom command on the server
+Windows Support
 
-Enter the number of the action: 5
-Selected action: Execute a custom command on the server
+For Windows servers, Servalizer uses mstsc for login. You can configure Windows-specific settings and commands in the server.json file, and for authentication, you can use cmdkey.
 
-Enter the custom command to execute on the server: ls -l /home/dev
+Example Windows login:
 
-Executing command on dev-server1: ls -l /home/dev
-total 8
-drwxrwxr-x 2 dev dev 4096 Oct 5 09:13 logs
--rw-r--r-- 1 dev dev 2048 Oct 5 09:14 README.txt
-```
+mstsc /v:<hostname>
 
-## Batch File Transfers
+If credentials are stored in Vault, they will be retrieved automatically for use in the login process.
 
-- **Upload**: Supports uploading multiple files using wildcards (`*`).
-- **Download**: Similarly, you can download multiple files by specifying wildcards.
+Future Enhancements
 
-### Example:
+Some possible enhancements include:
 
-```bash
-# Upload all `.txt` files to the remote server's `/home/dev/` directory
-./serverctl.sh --upload "*.txt" /home/dev/
+	•	Web-based interface for easier management and visibility.
+	•	REST API support for remote command execution.
+	•	Expanded Windows support with more advanced features.
 
-# Download all `.log` files from the server to the local `logs/` directory
-./serverctl.sh --download "*.log" ./logs/
-```
+License
 
-## Custom Command Execution
-
-You can execute any custom command on the server. The command is logged to a file for future reference, and you will have an option to repeat it from the history.
-
-```bash
-$ ./serverctl.sh --custom-command "ls -l /var/log"
-```
-
-## Error Handling
-
-- **SSH Connection Failures**: If SSH login fails, an error message will be displayed, and you will be prompted to retry or exit.
-- **Vault Access Issues**: If the credentials cannot be retrieved from Vault, the script will alert you and exit.
-
-## Color Coding
-
-- **Success Messages**: Displayed in green.
-- **Error Messages**: Displayed in red.
-- **Info/Prompts**: Displayed in yellow for clarity.
-
-To disable color coding, run the script with the `--no-color` flag:
-
-```bash
-./serverctl.sh --no-color
-```
-
-## Customization
-
-1. **General Commands**: Add general commands to the `servers.json` under `"general_commands"` to make them available for all servers.
-2. **Server-Specific Commands**: Each server in `servers.json` can have its own set of commands.
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for more information.
-
-## Acknowledgements
-
-- [jq](https://stedolan.github.io/jq/) for JSON processing.
-- [sshpass](https://github.com/kevinburke/sshpass) for handling SSH password authentication.
-- [fzf](https://github.com/junegunn/fzf) for fuzzy searching.
+Servalizer is released under the MIT License.
